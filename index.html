@@ -26,7 +26,12 @@
         .cie { fill: #2ecc71; }
         .dep { fill: #e74c3c; }
         
-        .slot { stroke: #1a1a1a; stroke-width: 0.4; cursor: pointer; }
+        /* Casillas Tira Otra Vez (Simétricas) */
+        .extra-roll { 
+            fill: #fdfdfd; 
+        }
+
+        .slot { stroke: #1a1a1a; stroke-width: 0.4; cursor: pointer; transition: filter 0.2s; }
         .slot:hover { filter: brightness(1.2); }
         
         .center-hex { fill: #ecf0f1; stroke: #333; stroke-width: 0.8; }
@@ -59,11 +64,10 @@
     const radioWidth = 8; // Ancho del radio
     // ==========================================
 
-    // Convertimos el ancho del radio (lineal) a ancho angular aproximado para el anillo
     const radioAngularWidth = (radioWidth / (2 * Math.PI * rIn)) * 360;
     const interSlotAngularWidth = (60 - radioAngularWidth) / 6;
 
-    // 1. GENERAR ANILLO EXTERIOR (Casillas a medida)
+    // 1. GENERAR ANILLO EXTERIOR
     let currentAngle = -90 - (radioAngularWidth / 2);
 
     for (let i = 0; i < 6; i++) {
@@ -71,16 +75,21 @@
         drawArc(currentAngle, currentAngle + radioAngularWidth, colors[i]);
         currentAngle += radioAngularWidth;
 
-        // 6 Casillas intermedias
+        // 6 Casillas intermedias entre radios
         for (let j = 0; j < 6; j++) {
-            // El color sigue la secuencia de colores
             const colorIdx = (i * 7 + j + 1) % 6;
-            drawArc(currentAngle, currentAngle + interSlotAngularWidth, colors[colorIdx]);
+            
+            // Lógica de casillas especiales:
+            // j === 1 (A dos por la derecha del radio anterior)
+            // j === 4 (A dos por la izquierda del siguiente radio)
+            const isSpecial = (j === 1 || j === 4); 
+            
+            drawArc(currentAngle, currentAngle + interSlotAngularWidth, colors[colorIdx], isSpecial);
             currentAngle += interSlotAngularWidth;
         }
     }
 
-    function drawArc(startAngle, endAngle, colorClass) {
+    function drawArc(startAngle, endAngle, colorClass, isSpecial) {
         const x1 = 50 + rOut * Math.cos(Math.PI * startAngle / 180);
         const y1 = 50 + rOut * Math.sin(Math.PI * startAngle / 180);
         const x2 = 50 + rOut * Math.cos(Math.PI * endAngle / 180);
@@ -93,11 +102,11 @@
         const pathData = `M ${x1} ${y1} A ${rOut} ${rOut} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 0 0 ${x4} ${y4} Z`;
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("d", pathData);
-        path.setAttribute("class", `slot ${colorClass}`);
+        path.setAttribute("class", `slot ${colorClass} ${isSpecial ? 'extra-roll' : ''}`);
         ringGroup.appendChild(path);
     }
 
-    // 2. GENERAR RADIOS
+    // 2. GENERAR RADIOS (Manteniendo tus ajustes de y + 0.2)
     const availableSpace = rIn - hexSize;
     const slotHeight = availableSpace / 5;
 
@@ -118,7 +127,7 @@
         spokesGroup.appendChild(group);
     });
 
-    // 3. GENERAR HEXÁGONO (Lado plano arriba)
+    // 3. GENERAR HEXÁGONO
     const hexPoints = [];
     for (let i = 0; i < 6; i++) {
         const angle = i * 60;
