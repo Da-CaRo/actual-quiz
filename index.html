@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Tablero</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .board-container {
+            width: 90vmin;
+            max-width: 700px;
+        }
+        svg { width: 100%; height: auto; }
+        
+        .geo { fill: #3498db; }
+        .ent { fill: #f1c40f; }
+        .his { fill: #e67e22; }
+        .art { fill: #9b59b6; }
+        .cie { fill: #2ecc71; }
+        .dep { fill: #e74c3c; }
+        
+        .slot { stroke: #1a1a1a; stroke-width: 0.4; cursor: pointer; }
+        .slot:hover { filter: brightness(1.2); }
+        
+        .center-hex { fill: #ecf0f1; stroke: #333; stroke-width: 0.8; }
+        .label { fill: #333; font-size: 2.8px; font-weight: bold; text-anchor: middle; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="board-container">
+    <svg viewBox="0 0 100 100" id="gameBoard">
+        <circle cx="50" cy="50" r="50" fill="#2c3e50" />
+        <g id="ring"></g>
+        <g id="spokes"></g>
+        <polygon id="hexCenter" class="center-hex" />
+        <text x="50" y="51" class="label">*</text>
+    </svg>
+</div>
+
+<script>
+    const colors = ['geo', 'ent', 'his', 'art', 'cie', 'dep'];
+    const ringGroup = document.getElementById('ring');
+    const spokesGroup = document.getElementById('spokes');
+
+    // ==========================================
+    // CONFIGURACIÓN DE TAMAÑOS
+    // ==========================================
+    const rOut = 49;      
+    const rIn = 40;       
+    const hexSize = 8;   
+    const radioWidth = 8; // Ancho del radio
+    // ==========================================
+
+    // Convertimos el ancho del radio (lineal) a ancho angular aproximado para el anillo
+    const radioAngularWidth = (radioWidth / (2 * Math.PI * rIn)) * 360;
+    const interSlotAngularWidth = (60 - radioAngularWidth) / 6;
+
+    // 1. GENERAR ANILLO EXTERIOR (Casillas a medida)
+    let currentAngle = -90 - (radioAngularWidth / 2);
+
+    for (let i = 0; i < 6; i++) {
+        // Casilla "Estación" (coincide con el radio)
+        drawArc(currentAngle, currentAngle + radioAngularWidth, colors[i]);
+        currentAngle += radioAngularWidth;
+
+        // 6 Casillas intermedias
+        for (let j = 0; j < 6; j++) {
+            // El color sigue la secuencia de colores
+            const colorIdx = (i * 7 + j + 1) % 6;
+            drawArc(currentAngle, currentAngle + interSlotAngularWidth, colors[colorIdx]);
+            currentAngle += interSlotAngularWidth;
+        }
+    }
+
+    function drawArc(startAngle, endAngle, colorClass) {
+        const x1 = 50 + rOut * Math.cos(Math.PI * startAngle / 180);
+        const y1 = 50 + rOut * Math.sin(Math.PI * startAngle / 180);
+        const x2 = 50 + rOut * Math.cos(Math.PI * endAngle / 180);
+        const y2 = 50 + rOut * Math.sin(Math.PI * endAngle / 180);
+        const x3 = 50 + rIn * Math.cos(Math.PI * endAngle / 180);
+        const y3 = 50 + rIn * Math.sin(Math.PI * endAngle / 180);
+        const x4 = 50 + rIn * Math.cos(Math.PI * startAngle / 180);
+        const y4 = 50 + rIn * Math.sin(Math.PI * startAngle / 180);
+
+        const pathData = `M ${x1} ${y1} A ${rOut} ${rOut} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 0 0 ${x4} ${y4} Z`;
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pathData);
+        path.setAttribute("class", `slot ${colorClass}`);
+        ringGroup.appendChild(path);
+    }
+
+    // 2. GENERAR RADIOS
+    const availableSpace = rIn - hexSize;
+    const slotHeight = availableSpace / 5;
+
+    colors.forEach((color, index) => {
+        const angle = index * 60; 
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        group.setAttribute("transform", `rotate(${angle} 50 50)`);
+
+        for (let j = 0; j < 5; j++) {
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", 50 - (radioWidth / 2));
+            rect.setAttribute("y", (50 - rIn) + (j * slotHeight) + 0.2); 
+            rect.setAttribute("width", radioWidth);
+            rect.setAttribute("height", slotHeight);
+            rect.setAttribute("class", `slot ${color}`);
+            group.appendChild(rect);
+        }
+        spokesGroup.appendChild(group);
+    });
+
+    // 3. GENERAR HEXÁGONO (Lado plano arriba)
+    const hexPoints = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = i * 60;
+        const x = 50 + hexSize * Math.cos(Math.PI * angle / 180);
+        const y = 50 + hexSize * Math.sin(Math.PI * angle / 180);
+        hexPoints.push(`${x},${y}`);
+    }
+    document.getElementById('hexCenter').setAttribute("points", hexPoints.join(" "));
+</script>
+
+</body>
+</html>
