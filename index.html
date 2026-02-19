@@ -6,6 +6,7 @@
     <style>
         body {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -13,12 +14,39 @@
             background-color: #1a1a1a;
             font-family: 'Segoe UI', sans-serif;
             overflow: hidden;
+            touch-action: none; /* Previene scroll al mover fichas en móvil */
         }
+
+        /* --- CONTADORES SUPERIORES --- */
+        .teams-container {
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            background: rgba(0, 0, 0, 0.5);
+            position: fixed;
+            top: 0;
+            z-index: 10;
+        }
+        .team-box { display: flex; flex-direction: column; align-items: center; color: white; }
+        .team-name { font-size: 0.65rem; margin-bottom: 4px; opacity: 0.8; }
+        .wedges { display: flex; gap: 3px; }
+        .wedge {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            border: 1px solid #444;
+            cursor: pointer;
+            filter: grayscale(1) brightness(0.5);
+        }
+        .wedge.active { filter: grayscale(0) brightness(1); border-color: white; }
+
         .board-container {
-            width: 90vmin;
+            width: 85vmin;
             max-width: 700px;
+            margin-top: 50px;
+            position: relative;
         }
-        svg { width: 100%; height: auto; }
+        svg { width: 100%; height: auto; display: block; }
         
         /* Diccionario de Colores */
         .geo { fill: #3498db; } /* Azul */
@@ -29,55 +57,45 @@
         .dep { fill: #e67e22; } /* Naranja */
         .extra { fill: #fdfdfd; } /* Blanco */
 
-        .slot { stroke: #1a1a1a; stroke-width: 0.4; cursor: pointer; transition: filter 0.2s; }
-        .slot:hover { filter: brightness(1.2); }
+        .slot { stroke: #1a1a1a; stroke-width: 0.4; }
         .center-hex { fill: #ecf0f1; stroke: #333; stroke-width: 0.8; }
 
-        /* --- ESTILOS DEL DADO --- */
+        /* --- FICHAS (TOKENS) --- */
+        .token {
+            cursor: grab;
+            stroke: #fff;
+            stroke-width: 0.5;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+        }
+        .token:active { cursor: grabbing; }
+
+        /* --- DADO --- */
         .dice-container {
             position: fixed;
-            bottom: 40px;
-            right: 40px;
-            width: 80px;
-            height: 80px;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
             cursor: pointer;
-            perspective: 400px;
         }
         #dice {
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
             background-color: #fff;
-            border-radius: 12px;
+            border-radius: 10px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 2.5rem;
+            font-size: 1.8rem;
             font-weight: bold;
-            color: #333;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3), inset 0 -4px 8px rgba(0,0,0,0.1);
-            transition: transform 0.1s;
-            user-select: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
-        .dice-rolling {
-            animation: roll 0.1s infinite;
-        }
-        @keyframes roll {
-            0% { transform: rotate(0deg) scale(0.95); }
-            50% { transform: rotate(5deg) scale(1); }
-            100% { transform: rotate(-5deg) scale(0.95); }
-        }
-        .dice-label {
-            position: absolute;
-            top: -25px;
-            width: 100%;
-            text-align: center;
-            color: white;
-            font-size: 0.8rem;
-            letter-spacing: 1px;
-        }
+        .dice-rolling { animation: roll 0.1s infinite; }
+        @keyframes roll { 0% { transform: rotate(0); } 100% { transform: rotate(10deg); } }
     </style>
 </head>
 <body>
+
+<div class="teams-container" id="teamsContainer"></div>
 
 <div class="board-container">
     <svg viewBox="0 0 100 100" id="gameBoard">
@@ -85,12 +103,12 @@
         <g id="ring"></g>
         <g id="spokes"></g>
         <polygon id="hexCenter" class="center-hex" />
-        <text x="50" y="52" id="centerText" style="fill:#333; font-size:4px; font-weight:bold; text-anchor:middle;">*</text>
+        <text x="50" y="52" id="centerText" style="fill:#333; font-size:4px; font-weight:bold; text-anchor:middle; pointer-events:none;"></text>
+        <g id="tokensGroup"></g>
     </svg>
 </div>
 
 <div class="dice-container" onclick="rollDice()">
-    <div class="dice-label">TAP</div>
     <div id="dice">?</div>
 </div>
 
@@ -99,6 +117,9 @@
     // 1. CONFIGURACIÓN DEL ANILLO (Sentido horario)
     // [QUESITO, casilla 1, 2, 3, 4, 5, 6]
     // =========================================================================
+    const colorsList = ['geo', 'art', 'his', 'ent', 'cie', 'dep'];
+    
+    // --- 1. CONFIGURACIÓN MANUAL DEL TABLERO ---
     const anilloManual = [
         ['his', 'art', 'extra', 'cie', 'dep', 'extra', 'geo'], // Anillo Norte
         ['ent', 'geo', 'extra', 'art', 'his', 'extra', 'dep'], // Anillo NE
@@ -125,30 +146,65 @@
     // 3. PARÁMETROS FÍSICOS
     // =========================================================================
     // --- LÓGICA DEL DADO ---
-    let isRolling = false;
-    function rollDice() {
-        if (isRolling) return;
-        isRolling = true;
-        const diceEl = document.getElementById('dice');
-        const centerText = document.getElementById('centerText');
-        
-        diceEl.classList.add('dice-rolling');
-        
-        // Simular tiempo de giro
-        setTimeout(() => {
-            const result = Math.floor(Math.random() * 6) + 1;
-            diceEl.innerText = result;
-            diceEl.classList.remove('dice-rolling');
-            
-            // Opcional: Mostrar el resultado también en el centro del tablero
-            centerText.innerText = result;
-            centerText.style.fontSize = "6px";
-            
-            isRolling = false;
-        }, 600);
+    // --- 2. GENERAR CONTADORES Y FICHAS ---
+    const teamsContainer = document.getElementById('teamsContainer');
+    const tokensGroup = document.getElementById('tokensGroup');
+    const tokenColors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22'];
+
+    for (let i = 0; i < 6; i++) {
+        // Contadores
+        const teamBox = document.createElement('div');
+        teamBox.className = 'team-box';
+        teamBox.innerHTML = `<span class="team-name" style="color:${tokenColors[i]}">EQUIPO ${i+1}</span>`;
+        const wedgesDiv = document.createElement('div');
+        wedgesDiv.className = 'wedges';
+        colorsList.forEach(c => {
+            const w = document.createElement('div');
+            w.className = `wedge ${c}`;
+            w.onclick = () => w.classList.toggle('active');
+            wedgesDiv.appendChild(w);
+        });
+        teamBox.appendChild(wedgesDiv);
+        teamsContainer.appendChild(teamBox);
+
+        // Fichas en el centro (con un ligero offset para no solaparse)
+        const token = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        token.setAttribute("cx", 47 + (i * 1.2));
+        token.setAttribute("cy", 50);
+        token.setAttribute("r", 1.8);
+        token.setAttribute("fill", tokenColors[i]);
+        token.setAttribute("class", "token");
+        makeDraggable(token);
+        tokensGroup.appendChild(token);
     }
 
-    // --- DIBUJO DEL TABLERO (Mantenido de versiones anteriores) ---
+    // --- 3. LÓGICA DE ARRASTRE (DRAG & DROP) ---
+    function makeDraggable(el) {
+        let isDragging = false;
+        const svg = document.getElementById('gameBoard');
+
+        const start = (e) => { isDragging = true; };
+        const end = () => { isDragging = false; };
+        const move = (e) => {
+            if (!isDragging) return;
+            const pt = svg.createSVGPoint();
+            const evt = e.touches ? e.touches[0] : e;
+            pt.x = evt.clientX;
+            pt.y = evt.clientY;
+            const cursorpt = pt.matrixTransform(svg.getScreenCTM().inverse());
+            el.setAttribute("cx", cursorpt.x);
+            el.setAttribute("cy", cursorpt.y);
+        };
+
+        el.addEventListener('mousedown', start);
+        el.addEventListener('touchstart', start);
+        window.addEventListener('mousemove', move);
+        window.addEventListener('touchmove', move);
+        window.addEventListener('mouseup', end);
+        window.addEventListener('touchend', end);
+    }
+
+    // --- 4. DIBUJO DEL TABLERO ---
     const rOut = 49, rIn = 40, hexSize = 8, radioWidth = 8;
     const ringGroup = document.getElementById('ring');
     const spokesGroup = document.getElementById('spokes');
@@ -156,31 +212,24 @@
     const radioAngularWidth = (radioWidth / (2 * Math.PI * rIn)) * 360;
     const interSlotAngularWidth = (60 - radioAngularWidth) / 6;
 
-    // --- DIBUJAR ANILLO ---
     let currentAngle = -90 - (radioAngularWidth / 2);
-    for (let i = 0; i < 6; i++) {
-        const tramo = anilloManual[i];
+    anilloManual.forEach(tramo => {
         drawArc(currentAngle, currentAngle + radioAngularWidth, tramo[0]);
         currentAngle += radioAngularWidth;
         for (let j = 0; j < 6; j++) {
             drawArc(currentAngle, currentAngle + interSlotAngularWidth, tramo[j+1]);
             currentAngle += interSlotAngularWidth;
         }
-    }
+    });
 
     function drawArc(s, e, color) {
-        const x1 = 50 + rOut * Math.cos(Math.PI * s / 180);
-        const y1 = 50 + rOut * Math.sin(Math.PI * s / 180);
-        const x2 = 50 + rOut * Math.cos(Math.PI * e / 180);
-        const y2 = 50 + rOut * Math.sin(Math.PI * e / 180);
-        const x3 = 50 + rIn * Math.cos(Math.PI * e / 180);
-        const y3 = 50 + rIn * Math.sin(Math.PI * e / 180);
-        const x4 = 50 + rIn * Math.cos(Math.PI * s / 180);
-        const y4 = 50 + rIn * Math.sin(Math.PI * s / 180);
+        const x1 = 50 + rOut * Math.cos(Math.PI * s / 180), y1 = 50 + rOut * Math.sin(Math.PI * s / 180);
+        const x2 = 50 + rOut * Math.cos(Math.PI * e / 180), y2 = 50 + rOut * Math.sin(Math.PI * e / 180);
+        const x3 = 50 + rIn * Math.cos(Math.PI * e / 180), y3 = 50 + rIn * Math.sin(Math.PI * e / 180);
+        const x4 = 50 + rIn * Math.cos(Math.PI * s / 180), y4 = 50 + rIn * Math.sin(Math.PI * s / 180);
         const d = `M ${x1} ${y1} A ${rOut} ${rOut} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 0 0 ${x4} ${y4} Z`;
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", d);
-        path.setAttribute("class", `slot ${color}`);
+        path.setAttribute("d", d); path.setAttribute("class", `slot ${color}`);
         ringGroup.appendChild(path);
     }
 
@@ -192,8 +241,7 @@
             const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
             rect.setAttribute("x", 50 - (radioWidth / 2));
             rect.setAttribute("y", (50 - rIn) + (j * slotHeight) + 0.2); 
-            rect.setAttribute("width", radioWidth);
-            rect.setAttribute("height", slotHeight);
+            rect.setAttribute("width", radioWidth); rect.setAttribute("height", slotHeight);
             rect.setAttribute("class", `slot ${color}`);
             group.appendChild(rect);
         });
@@ -207,6 +255,22 @@
         hexPoints.push(`${x},${y}`);
     }
     document.getElementById('hexCenter').setAttribute("points", hexPoints.join(" "));
+
+    // --- 5. DADO ---
+    let isRolling = false;
+    function rollDice() {
+        if (isRolling) return;
+        isRolling = true;
+        const diceEl = document.getElementById('dice');
+        diceEl.classList.add('dice-rolling');
+        setTimeout(() => {
+            const res = Math.floor(Math.random() * 6) + 1;
+            diceEl.innerText = res;
+            document.getElementById('centerText').innerText = res;
+            diceEl.classList.remove('dice-rolling');
+            isRolling = false;
+        }, 600);
+    }
 </script>
 
 </body>
