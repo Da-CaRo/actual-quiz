@@ -12,6 +12,7 @@
             margin: 0;
             background-color: #1a1a1a;
             font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
         }
         .board-container {
             width: 90vmin;
@@ -30,9 +31,50 @@
 
         .slot { stroke: #1a1a1a; stroke-width: 0.4; cursor: pointer; transition: filter 0.2s; }
         .slot:hover { filter: brightness(1.2); }
-        
         .center-hex { fill: #ecf0f1; stroke: #333; stroke-width: 0.8; }
-        .label { fill: #333; font-size: 2.8px; font-weight: bold; text-anchor: middle; pointer-events: none; }
+
+        /* --- ESTILOS DEL DADO --- */
+        .dice-container {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+            perspective: 400px;
+        }
+        #dice {
+            width: 100%;
+            height: 100%;
+            background-color: #fff;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3), inset 0 -4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.1s;
+            user-select: none;
+        }
+        .dice-rolling {
+            animation: roll 0.1s infinite;
+        }
+        @keyframes roll {
+            0% { transform: rotate(0deg) scale(0.95); }
+            50% { transform: rotate(5deg) scale(1); }
+            100% { transform: rotate(-5deg) scale(0.95); }
+        }
+        .dice-label {
+            position: absolute;
+            top: -25px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
@@ -43,8 +85,13 @@
         <g id="ring"></g>
         <g id="spokes"></g>
         <polygon id="hexCenter" class="center-hex" />
-        <text x="50" y="51" class="label">*</text>
+        <text x="50" y="52" id="centerText" style="fill:#333; font-size:4px; font-weight:bold; text-anchor:middle;">*</text>
     </svg>
+</div>
+
+<div class="dice-container" onclick="rollDice()">
+    <div class="dice-label">TAP</div>
+    <div id="dice">?</div>
 </div>
 
 <script>
@@ -77,11 +124,32 @@
     // =========================================================================
     // 3. PARÁMETROS FÍSICOS
     // =========================================================================
-    const rOut = 49;      
-    const rIn = 40;       
-    const hexSize = 8;   
-    const radioWidth = 8; 
+    // --- LÓGICA DEL DADO ---
+    let isRolling = false;
+    function rollDice() {
+        if (isRolling) return;
+        isRolling = true;
+        const diceEl = document.getElementById('dice');
+        const centerText = document.getElementById('centerText');
+        
+        diceEl.classList.add('dice-rolling');
+        
+        // Simular tiempo de giro
+        setTimeout(() => {
+            const result = Math.floor(Math.random() * 6) + 1;
+            diceEl.innerText = result;
+            diceEl.classList.remove('dice-rolling');
+            
+            // Opcional: Mostrar el resultado también en el centro del tablero
+            centerText.innerText = result;
+            centerText.style.fontSize = "6px";
+            
+            isRolling = false;
+        }, 600);
+    }
 
+    // --- DIBUJO DEL TABLERO (Mantenido de versiones anteriores) ---
+    const rOut = 49, rIn = 40, hexSize = 8, radioWidth = 8;
     const ringGroup = document.getElementById('ring');
     const spokesGroup = document.getElementById('spokes');
 
@@ -90,44 +158,36 @@
 
     // --- DIBUJAR ANILLO ---
     let currentAngle = -90 - (radioAngularWidth / 2);
-
     for (let i = 0; i < 6; i++) {
         const tramo = anilloManual[i];
         drawArc(currentAngle, currentAngle + radioAngularWidth, tramo[0]);
         currentAngle += radioAngularWidth;
-
         for (let j = 0; j < 6; j++) {
             drawArc(currentAngle, currentAngle + interSlotAngularWidth, tramo[j+1]);
             currentAngle += interSlotAngularWidth;
         }
     }
 
-    function drawArc(startAngle, endAngle, colorClass) {
-        const x1 = 50 + rOut * Math.cos(Math.PI * startAngle / 180);
-        const y1 = 50 + rOut * Math.sin(Math.PI * startAngle / 180);
-        const x2 = 50 + rOut * Math.cos(Math.PI * endAngle / 180);
-        const y2 = 50 + rOut * Math.sin(Math.PI * endAngle / 180);
-        const x3 = 50 + rIn * Math.cos(Math.PI * endAngle / 180);
-        const y3 = 50 + rIn * Math.sin(Math.PI * endAngle / 180);
-        const x4 = 50 + rIn * Math.cos(Math.PI * startAngle / 180);
-        const y4 = 50 + rIn * Math.sin(Math.PI * startAngle / 180);
-
-        const pathData = `M ${x1} ${y1} A ${rOut} ${rOut} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 0 0 ${x4} ${y4} Z`;
+    function drawArc(s, e, color) {
+        const x1 = 50 + rOut * Math.cos(Math.PI * s / 180);
+        const y1 = 50 + rOut * Math.sin(Math.PI * s / 180);
+        const x2 = 50 + rOut * Math.cos(Math.PI * e / 180);
+        const y2 = 50 + rOut * Math.sin(Math.PI * e / 180);
+        const x3 = 50 + rIn * Math.cos(Math.PI * e / 180);
+        const y3 = 50 + rIn * Math.sin(Math.PI * e / 180);
+        const x4 = 50 + rIn * Math.cos(Math.PI * s / 180);
+        const y4 = 50 + rIn * Math.sin(Math.PI * s / 180);
+        const d = `M ${x1} ${y1} A ${rOut} ${rOut} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 0 0 ${x4} ${y4} Z`;
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", pathData);
-        path.setAttribute("class", `slot ${colorClass}`);
+        path.setAttribute("d", d);
+        path.setAttribute("class", `slot ${color}`);
         ringGroup.appendChild(path);
     }
 
-    // --- DIBUJAR RADIOS PERSONALIZADOS ---
-    const availableSpace = rIn - hexSize;
-    const slotHeight = availableSpace / 5;
-
+    const slotHeight = (rIn - hexSize) / 5;
     configuracionRadiosManual.forEach((brazo, index) => {
-        const angle = index * 60; 
         const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        group.setAttribute("transform", `rotate(${angle} 50 50)`);
-
+        group.setAttribute("transform", `rotate(${index * 60} 50 50)`);
         brazo.forEach((color, j) => {
             const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
             rect.setAttribute("x", 50 - (radioWidth / 2));
@@ -140,12 +200,10 @@
         spokesGroup.appendChild(group);
     });
 
-    // --- DIBUJAR CENTRO ---
     const hexPoints = [];
     for (let i = 0; i < 6; i++) {
-        const angle = i * 60;
-        const x = 50 + hexSize * Math.cos(Math.PI * angle / 180);
-        const y = 50 + hexSize * Math.sin(Math.PI * angle / 180);
+        const x = 50 + hexSize * Math.cos(Math.PI * (i * 60) / 180);
+        const y = 50 + hexSize * Math.sin(Math.PI * (i * 60) / 180);
         hexPoints.push(`${x},${y}`);
     }
     document.getElementById('hexCenter').setAttribute("points", hexPoints.join(" "));
