@@ -181,6 +181,42 @@
                 transform: rotate(10deg);
             }
         }
+
+        /* Estilo moderno para el botón de reinicio */
+        .btn-reset {
+            position: fixed;
+            bottom: 25px;
+            left: 25px;
+            padding: 10px 18px;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            border: 1px solid #444;
+            border-radius: 30px;
+            /* Bordes muy redondeados */
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+        }
+
+        .btn-reset:hover {
+            background-color: #e74c3c;
+            /* Cambia a rojo al querer borrar */
+            color: white;
+            border-color: #e74c3c;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .btn-reset svg {
+            width: 16px;
+            height: 16px;
+        }
     </style>
 </head>
 
@@ -200,11 +236,70 @@
         </svg>
     </div>
 
+    <button class="btn-reset" onclick="resetGame()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+        </svg>
+        Reiniciar Partida
+    </button>
     <div class="dice-container" onclick="rollDice()">
         <div id="dice">?</div>
     </div>
 
+
     <script>
+
+        // Nombres de las llaves en LocalStorage
+        const STORAGE_TOKENS = 'trivial_tokens_pos';
+        const STORAGE_WEDGES = 'trivial_wedges_state';
+
+        function saveGameState() {
+            // 1. Guardar posiciones de fichas
+            const tokenPositions = Array.from(document.querySelectorAll('.token')).map(t => ({
+                cx: t.getAttribute('cx'),
+                cy: t.getAttribute('cy')
+            }));
+            localStorage.setItem(STORAGE_TOKENS, JSON.stringify(tokenPositions));
+
+            // 2. Guardar estado de quesitos (true si tiene clase 'active')
+            const wedgeStates = Array.from(document.querySelectorAll('.wedge')).map(w =>
+                w.classList.contains('active')
+            );
+            localStorage.setItem(STORAGE_WEDGES, JSON.stringify(wedgeStates));
+        }
+
+        function loadGameState() {
+            // 1. Cargar fichas
+            const savedTokens = JSON.parse(localStorage.getItem(STORAGE_TOKENS));
+            if (savedTokens) {
+                const tokens = document.querySelectorAll('.token');
+                savedTokens.forEach((pos, i) => {
+                    if (tokens[i]) {
+                        tokens[i].setAttribute('cx', pos.cx);
+                        tokens[i].setAttribute('cy', pos.cy);
+                    }
+                });
+            }
+
+            // 2. Cargar quesitos
+            const savedWedges = JSON.parse(localStorage.getItem(STORAGE_WEDGES));
+            if (savedWedges) {
+                const wedges = document.querySelectorAll('.wedge');
+                savedWedges.forEach((isActive, i) => {
+                    if (wedges[i] && isActive) wedges[i].classList.add('active');
+                });
+            }
+        }
+
+        function resetGame() {
+            if (confirm("¿Seguro que quieres reiniciar toda la partida?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
         // =========================================================================
         // 1. CONFIGURACIÓN DEL ANILLO (Sentido horario)
         // [QUESITO, casilla 1, 2, 3, 4, 5, 6]
@@ -253,7 +348,10 @@
             colorsList.forEach(c => {
                 const w = document.createElement('div');
                 w.className = `wedge ${c}`;
-                w.onclick = () => w.classList.toggle('active');
+                w.onclick = () => {
+                    w.classList.toggle('active');
+                    saveGameState(); // <--- AÑADIR ESTO
+                };
                 wedgesDiv.appendChild(w);
             });
             teamBox.appendChild(wedgesDiv);
@@ -276,7 +374,10 @@
             const svg = document.getElementById('gameBoard');
 
             const start = (e) => { isDragging = true; };
-            const end = () => { isDragging = false; };
+            const end = () => {
+                isDragging = false;
+                saveGameState(); // <--- AÑADIR ESTO para guardar al soltar la ficha
+            };
             const move = (e) => {
                 if (!isDragging) return;
                 const pt = svg.createSVGPoint();
@@ -363,6 +464,8 @@
                 isRolling = false;
             }, 600);
         }
+
+        loadGameState();
     </script>
 
 </body>
