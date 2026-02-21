@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Preguntas Trivial Pro</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Colores del tablero */
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            filter: brightness(1.2);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background-color: #444 !important;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .geo {
+            background-color: #3498db;
+        }
+
+        .art {
+            background-color: #9b59b6;
+        }
+
+        .his {
+            background-color: #f1c40f;
+            color: #333;
+        }
+
+        .ent {
+            background-color: #e74c3c;
+        }
+
+        .cie {
+            background-color: #2ecc71;
+        }
+
+        .dep {
+            background-color: #e67e22;
+        }
+
+        .card {
+            background: #2c3e50;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+
+        .stats {
+            font-size: 0.8rem;
+            color: #bdc3c7;
+            margin-top: 10px;
+        }
+
+        #answer-area {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+            display: none;
+        }
+
+        .btn-action {
+            background: #95a5a6;
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="button-container">
+        <button id="btn-geo" class="btn geo" onclick="getQuestion('geo')">GEOGRAFÍA</button>
+        <button id="btn-art" class="btn art" onclick="getQuestion('art')">ARTE</button>
+        <button id="btn-his" class="btn his" onclick="getQuestion('his')">HISTORIA</button>
+        <button id="btn-ent" class="btn ent" onclick="getQuestion('ent')">ENTRETENIMIENTO</button>
+        <button id="btn-cie" class="btn cie" onclick="getQuestion('cie')">CIENCIA</button>
+        <button id="btn-dep" class="btn dep" onclick="getQuestion('dep')">DEPORTES</button>
+    </div>
+
+    <div id="question-card" class="card">
+        <h3 id="cat-title">Categoría</h3>
+        <p id="question-text">...</p>
+        <div class="stats" id="cat-stats">Quedan: --</div>
+
+        <button class="btn-action" onclick="toggleAnswer()">VER RESPUESTA</button>
+
+        <div id="answer-area">
+            <strong id="answer-text">...</strong>
+        </div>
+    </div>
+
+    <script>
+        // 1. BASE DE DATOS ESCALABLE (Cada pregunta con su ID único)
+        const db = {
+            geo: [
+                { id: "geo_01", q: "¿Cuál es el río más largo del mundo?", a: "El Amazonas" },
+                { id: "geo_02", q: "¿En qué continente está el Sáhara?", a: "África" },
+                { id: "geo_03", q: "¿Cuál es la capital de Japón?", a: "Tokio" }
+            ],
+            art: [
+                { id: "art_01", q: "¿Quién pintó la 'Mona Lisa'?", a: "Leonardo da Vinci" },
+                { id: "art_02", q: "¿Quién escribió 'Don Quijote'?", a: "Miguel de Cervantes" }
+            ],
+            his: [
+                { id: "his_01", q: "¿En qué año llegó Colón a América?", a: "1492" },
+                { id: "his_02", q: "¿En qué país nació Napoleón?", a: "Francia" }
+            ],
+            ent: [
+                { id: "ent_01", q: "¿Cómo se llama el ratón de Disney?", a: "Mickey Mouse" },
+                { id: "ent_02", q: "¿Quién es el director de 'Titanic'?", a: "James Cameron" }
+            ],
+            cie: [
+                { id: "cie_01", q: "¿Cuál es el símbolo del Oro?", a: "Au" },
+                { id: "cie_02", q: "¿Qué planeta es el 'Planeta Rojo'?", a: "Marte" }
+            ],
+            dep: [
+                { id: "dep_01", q: "¿Cuántos jugadores tiene un equipo de fútbol?", a: "11" },
+                { id: "dep_02", q: "¿En qué ciudad fueron los JJOO de 1992?", a: "Barcelona" }
+            ]
+        };
+
+        // 2. LÓGICA DE FILTRADO
+        // Usamos un Set para que la búsqueda sea instantánea
+        let preguntasMostradas = new Set();
+
+        function getQuestion(cat) {
+            const todasLasPreguntas = db[cat];
+
+            // 1. Intentamos obtener las preguntas que aún no han salido
+            let disponibles = todasLasPreguntas.filter(p => !preguntasMostradas.has(p.id));
+
+            // 2. LÓGICA DE REINICIO: Si no hay disponibles, vaciamos los IDs de esta categoría
+            if (disponibles.length === 0) {
+                console.log(`Reiniciando mazo de ${cat}...`);
+
+                // Eliminamos del Set global solo los IDs que empiezan por el prefijo de la categoría
+                todasLasPreguntas.forEach(p => preguntasMostradas.delete(p.id));
+
+                // Ahora que el registro está limpio para esta categoría, recalculamos disponibles
+                disponibles = todasLasPreguntas;
+
+                // Opcional: avisar al usuario del reinicio
+                alert(`¡Mazo de ${cat.toUpperCase()} completado! Reiniciando preguntas...`);
+            }
+
+            // 3. Selección aleatoria (ahora siempre habrá al menos una)
+            const randomIdx = Math.floor(Math.random() * disponibles.length);
+            const seleccionada = disponibles[randomIdx];
+
+            // 4. Registrar el ID para la siguiente ronda
+            preguntasMostradas.add(seleccionada.id);
+
+            // 5. Actualizar Interfaz (Se mantiene igual que antes)
+            actualizarInterfaz(cat, seleccionada, disponibles.length);
+        }
+
+        // Función auxiliar para mantener el código limpio
+        function actualizarInterfaz(cat, seleccionada, totalDisponibles) {
+            document.getElementById('question-card').style.display = 'block';
+            document.getElementById('cat-title').innerText = cat.toUpperCase();
+            document.getElementById('cat-title').className = "cat-title " + cat;
+
+            document.getElementById('question-text').innerText = seleccionada.q;
+            document.getElementById('answer-text').innerText = seleccionada.a;
+            document.getElementById('cat-stats').innerText = `Quedan en el mazo: ${totalDisponibles - 1}`;
+
+            document.getElementById('answer-area').style.display = 'none';
+        }
+
+        function toggleAnswer() {
+            const area = document.getElementById('answer-area');
+            area.style.display = (area.style.display === 'none' || area.style.display === '') ? 'block' : 'none';
+        }
+    </script>
+</body>
+
+</html>
