@@ -130,75 +130,45 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
         // 1. BASE DE DATOS ESCALABLE (Cada pregunta con su ID único)
-        const db = {
-            geo: [
-                { id: "geo_01", q: "¿Cuál es el río más largo del mundo?", a: "El Amazonas" },
-                { id: "geo_02", q: "¿En qué continente está el Sáhara?", a: "África" },
-                { id: "geo_03", q: "¿Cuál es la capital de Japón?", a: "Tokio" }
-            ],
-            art: [
-                { id: "art_01", q: "¿Quién pintó la 'Mona Lisa'?", a: "Leonardo da Vinci" },
-                { id: "art_02", q: "¿Quién escribió 'Don Quijote'?", a: "Miguel de Cervantes" }
-            ],
-            his: [
-                { id: "his_01", q: "¿En qué año llegó Colón a América?", a: "1492" },
-                { id: "his_02", q: "¿En qué país nació Napoleón?", a: "Francia" }
-            ],
-            ent: [
-                { id: "ent_01", q: "¿Cómo se llama el ratón de Disney?", a: "Mickey Mouse" },
-                { id: "ent_02", q: "¿Quién es el director de 'Titanic'?", a: "James Cameron" }
-            ],
-            cie: [
-                { id: "cie_01", q: "¿Cuál es el símbolo del Oro?", a: "Au" },
-                { id: "cie_02", q: "¿Qué planeta es el 'Planeta Rojo'?", a: "Marte" }
-            ],
-            dep: [
-                { id: "dep_01", q: "¿Cuántos jugadores tiene un equipo de fútbol?", a: "11" },
-                { id: "dep_02", q: "¿En qué ciudad fueron los JJOO de 1992?", a: "Barcelona" }
-            ]
-        };
+        import { db } from './data/questions.js';
+
+        const STORAGE_USED_QUESTIONS = 'trivial_used_questions';
+
+
 
         // 2. LÓGICA DE FILTRADO
         // Usamos un Set para que la búsqueda sea instantánea
-        let preguntasMostradas = new Set();
+        // Inicializamos cargando lo que hubiera en LocalStorage
+        let preguntasMostradas = loadUsedQuestions();
 
         function getQuestion(cat) {
             const todasLasPreguntas = db[cat];
-
-            // 1. Intentamos obtener las preguntas que aún no han salido
             let disponibles = todasLasPreguntas.filter(p => !preguntasMostradas.has(p.id));
 
-            // 2. LÓGICA DE REINICIO: Si no hay disponibles, vaciamos los IDs de esta categoría
             if (disponibles.length === 0) {
-                console.log(`Reiniciando mazo de ${cat}...`);
-
-                // Eliminamos del Set global solo los IDs que empiezan por el prefijo de la categoría
+                // Reinicio lógico
                 todasLasPreguntas.forEach(p => preguntasMostradas.delete(p.id));
-
-                // Ahora que el registro está limpio para esta categoría, recalculamos disponibles
                 disponibles = todasLasPreguntas;
-
-                // Opcional: avisar al usuario del reinicio
-                alert(`¡Mazo de ${cat.toUpperCase()} completado! Reiniciando preguntas...`);
+                saveUsedQuestions(preguntasMostradas); // Guardamos el estado limpio
             }
 
-            // 3. Selección aleatoria (ahora siempre habrá al menos una)
             const randomIdx = Math.floor(Math.random() * disponibles.length);
             const seleccionada = disponibles[randomIdx];
 
-            // 4. Registrar el ID para la siguiente ronda
             preguntasMostradas.add(seleccionada.id);
 
-            // 5. Actualizar Interfaz (Se mantiene igual que antes)
+            // GUARDAR EN LOCALSTORAGE
+            saveUsedQuestions(preguntasMostradas);
+
             actualizarInterfaz(cat, seleccionada, disponibles.length);
         }
 
         // Función auxiliar para mantener el código limpio
         function actualizarInterfaz(cat, seleccionada, totalDisponibles) {
             document.getElementById('question-card').style.display = 'block';
-            document.getElementById('cat-title').innerText = cat.toUpperCase();
+            document.getElementById('cat-title').innerText = cat.toUpperCase() + " " + seleccionada.id;
             document.getElementById('cat-title').className = "cat-title " + cat;
 
             document.getElementById('question-text').innerText = seleccionada.q;
@@ -212,6 +182,30 @@
             const area = document.getElementById('answer-area');
             area.style.display = (area.style.display === 'none' || area.style.display === '') ? 'block' : 'none';
         }
+
+        // Guardar las preguntas usadas cada vez que una sale
+        function saveUsedQuestions(set) {
+            localStorage.setItem(STORAGE_USED_QUESTIONS, JSON.stringify(Array.from(set)));
+        }
+
+        // Cargar las preguntas usadas al iniciar
+        function loadUsedQuestions() {
+            const saved = localStorage.getItem(STORAGE_USED_QUESTIONS);
+            return saved ? new Set(JSON.parse(saved)) : new Set();
+        }
+
+        function resetGame() {
+            if (confirm("¿Estás seguro de que quieres borrar todo el progreso (fichas, quesitos y preguntas)?")) {
+                // Borramos todo
+                localStorage.removeItem(STORAGE_TOKENS);
+                localStorage.removeItem(STORAGE_WEDGES);
+                localStorage.removeItem(STORAGE_USED_QUESTIONS);
+                location.reload();
+            }
+        }
+
+        window.getQuestion = getQuestion;
+        window.toggleAnswer = toggleAnswer;
     </script>
 </body>
 
